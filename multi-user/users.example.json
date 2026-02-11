@@ -1,0 +1,30 @@
+{
+  "users": [
+    {
+      "id": "alice",
+      "name": "Alice",
+      "identifiers": [
+        "+1234567890",
+        "telegram:alice_handle",
+        "discord:123456789"
+      ],
+      "model": "anthropic/claude-sonnet-4-20250514",
+      "skills": ["web-search", "calendar"],
+      "env": {
+        "ANTHROPIC_API_KEY": "sk-ant-alice-replace-me"
+      }
+    },
+    {
+      "id": "bob",
+      "name": "Bob",
+      "identifiers": ["+0987654321"],
+      "model": "openai/gpt-4o",
+      "env": {
+        "OPENAI_API_KEY": "sk-bob-replace-me"
+      }
+    }
+  ],
+  "defaults": {
+    "dmScope": "per-peer"
+  }
+}
