@@ -137,23 +137,21 @@ function cmdUsersAdd(args: string[]) {
     process.exit(1);
   }
 
-  // If vault is set, populate env with op:// references for common providers
+  // If vault is set, populate env with op:// references for per-user keys only.
+  // Shared keys (OpenAI, AssemblyAI, etc.) belong in openclaw.json env section.
+  // Only scoped keys (SuperMemory) need per-user isolation.
   if (user.vault) {
     const vaultPath = user.vault.endsWith("/") ? user.vault.slice(0, -1) : user.vault;
     if (!user.env) user.env = {};
-    // Set op:// references for all well-known providers (user can prune later)
-    const commonKeys = [
-      "ANTHROPIC_API_KEY",
-      "OPENAI_API_KEY",
+    const perUserKeys = [
       "SUPERMEMORY_OPENCLAW_API_KEY",
-      "ASSEMBLYAI_API_KEY",
     ];
-    for (const key of commonKeys) {
+    for (const key of perUserKeys) {
       if (!user.env[key]) {
         user.env[key] = `${vaultPath}/${key}`;
       }
     }
-    console.log(`Set ${commonKeys.length} op:// references from vault: ${vaultPath}`);
+    console.log(`Set ${perUserKeys.length} per-user op:// reference(s) from vault: ${vaultPath}`);
   }
 
   config.users.push(user);

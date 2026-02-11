@@ -4,27 +4,29 @@ A standalone layer that turns a single OpenClaw instance into a multi-user syste
 
 ## How It Works
 
-1. You define users in `users.json` (phone numbers, Telegram handles, API keys, model preferences)
+1. You define users in `users.json` (phone numbers, Telegram handles, model preferences)
 2. The **config generator** produces `generated.json` — a standard OpenClaw config fragment with agents, bindings, and allow-lists
 3. Your `openclaw.json` includes it via `"$include": "./multi-user/generated.json"`
-4. The **auth-setup** script writes per-user API keys to each agent's auth profile store
-5. OpenClaw routes each sender to their own agent — **zero OpenClaw source code modifications**
+4. OpenClaw routes each sender to their own agent — **zero OpenClaw source code modifications**
 
 ## Quick Start
 
 ```bash
-# 1. Edit users.json with your users
+# 1. Set shared API keys in openclaw.json (all users inherit these)
+#    Add to ~/.openclaw/openclaw.json:
+#    { "env": { "OPENAI_API_KEY": "sk-...", "ASSEMBLYAI_API_KEY": "..." } }
+
+# 2. Edit users.json with your users
 cp users.example.json users.json
-# Edit users.json — use op:// references or raw API keys
+# Only per-user keys (e.g., SuperMemory scoped keys) go here
 
-# 2. Generate config + set up auth profiles
+# 3. Generate config + set up auth profiles
 npm run generate
-npm run auth-setup
 
-# 3. Wire into OpenClaw (one-time)
+# 4. Wire into OpenClaw (one-time)
 npm run cli -- wire
 
-# 4. Start the gateway (or let a running gateway hot-reload)
+# 5. Start the gateway (or let a running gateway hot-reload)
 openclaw gateway run
 ```
 
@@ -38,19 +40,24 @@ You can clone it from your repo and point OpenClaw at it.
 git clone https://github.com/jmoraispk/loglife.git ~/loglife
 cd ~/loglife/multi-user
 
-# 2. Create and edit your users.json
-cp users.example.json users.json
-# Fill in users, identifiers, and API keys (raw or op:// references)
+# 2. Set shared API keys in openclaw.json (OpenAI, AssemblyAI, etc.)
+#    These are inherited by ALL agents automatically.
+#    In ~/.openclaw/openclaw.json, add:
+#    { "env": { "OPENAI_API_KEY": "sk-...", "ASSEMBLYAI_API_KEY": "..." } }
 
-# 3. Generate config + auth profiles
+# 3. Create and edit your users.json
+cp users.example.json users.json
+# Only per-user keys (e.g., SuperMemory scoped keys) go in users.json
+
+# 4. Generate config + auth profiles
 npm run generate
 
-# 4. Wire the $include into OpenClaw's config (one-time)
+# 5. Wire the $include into OpenClaw's config (one-time)
 #    This adds "$include": "/path/to/loglife/multi-user/generated.json"
 #    to ~/.openclaw/openclaw.json
 npm run cli -- wire
 
-# 5. That's it — OpenClaw reads the generated config on next reload/restart
+# 6. That's it — OpenClaw reads the generated config on next reload/restart
 ```
 
 ### Adding Users While Running
@@ -68,14 +75,22 @@ npm run cli -- users add carol \
 npm run cli -- generate
 ```
 
+### API Key Strategy
+
+**Shared keys** (OpenAI, AssemblyAI, Anthropic, etc.) go in `openclaw.json`'s `env` section. All agents inherit them automatically via OpenClaw's env fallback chain. One key per provider, shared across all users.
+
+**Per-user keys** (SuperMemory scoped keys) go in each user's `env` field in `users.json`. These get written to per-agent auth-profiles and take priority over the shared env keys.
+
+This means most services need just one API key total — only services with per-user container isolation (like SuperMemory) need separate keys.
+
 ### 1Password Integration (Optional)
 
-API keys can be stored as `op://` references instead of raw keys:
+Per-user keys can be stored as `op://` references instead of raw keys:
 
 ```json
 {
   "env": {
-    "ANTHROPIC_API_KEY": "op://LogLife_users/alice/ANTHROPIC_API_KEY"
+    "SUPERMEMORY_OPENCLAW_API_KEY": "op://LogLife_users/alice/SUPERMEMORY_API_KEY"
   }
 }
 ```
@@ -100,7 +115,7 @@ npm run cli -- wire                               # Wire $include into openclaw.
 | File | Purpose |
 |------|---------|
 | `users.json` | Source of truth: who are the users? |
-| `users.example.json` | Example with op:// references and defaults |
+| `users.example.json` | Example showing per-user keys (SuperMemory) and defaults |
 | `generated.json` | Auto-generated OpenClaw config fragment (do not edit) |
 | `src/types.ts` | TypeScript types for user profiles |
 | `src/identifiers.ts` | Parse phone numbers and channel IDs into OpenClaw format |
@@ -126,6 +141,7 @@ npm run test-harness
 - **Update safe** — `git pull` from upstream will never conflict
 - **Portable** — clone this folder, point OpenClaw at it, done
 - **Uses existing primitives** — agents, bindings, allow-lists, auth profiles
-- **Secrets stay in 1Password** — `users.json` is safe to commit (only op:// refs)
+- **Minimal per-user keys** — shared keys live in `openclaw.json` env; only scoped keys (SuperMemory) are per-user
+- **Secrets stay in 1Password** — `users.json` is safe to commit (only op:// refs or scoped keys)
 
 See `README_why.md` for detailed architecture, memory isolation analysis, and design rationale.
