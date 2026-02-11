@@ -63,3 +63,59 @@ As soon as you need **any** of the following, you need the one-user-per-agent ma
 - Per-user usage tracking (who consumed how many tokens, at what cost)
 
 The `dmScope` setting cannot solve these because they are properties of the **agent**, not the **session**. Our layer maps each user to their own agent, so all of these are isolated automatically by OpenClaw's existing per-agent architecture.
+
+---
+
+## Appendix: Memory layers and isolation
+
+OpenClaw has six distinct layers of persistent state. Understanding these is important for reasoning about what is and isn't isolated between users.
+
+### 1. Conversation history (session transcripts)
+
+The back-and-forth messages — what you said, what the AI replied.
+
+- **Where**: `~/.openclaw/agents/{agentId}/sessions/{sessionId}.jsonl`
+- **Isolated per user?** Yes — path includes `agentId`
+
+### 2. Session metadata
+
+Index of all sessions (creation time, last message, session IDs).
+
+- **Where**: `~/.openclaw/agents/{agentId}/sessions/sessions.json`
+- **Isolated per user?** Yes
+
+### 3. Long-term memory (vector DB)
+
+The `.sqlite` database that stores embeddings for semantic recall — things the bot "remembers" across conversations. This is the persistent knowledge that survives session resets.
+
+- **Where**: `~/.openclaw/memory/{agentId}.sqlite`
+- **Isolated per user?** Yes — one DB per agent
+
+### 4. Workspace memory files
+
+Markdown files the agent uses as a scratchpad — `MEMORY.md`, daily logs in `memory/YYYY-MM-DD.md`.
+
+- **Where**: `~/.openclaw/workspace-{agentId}/` (or `~/.openclaw/workspace/` for the default agent)
+- **Isolated per user?** Yes — each agent gets its own workspace directory
+
+### 5. Agent directory (auth, config)
+
+Auth profiles (`auth-profiles.json`), runtime auth cache.
+
+- **Where**: `~/.openclaw/agents/{agentId}/agent/`
+- **Isolated per user?** Yes
+
+### 6. Log files (debug/trace)
+
+Cache traces, raw API payloads, command logs — operational and debug data.
+
+- **Where**: `~/.openclaw/logs/*.jsonl`
+- **Isolated per user?** **No** — these are shared across all agents. Entries from different agents are interleaved in the same files.
+
+### Is memory 100% separate?
+
+**Almost.** The five layers that matter for user-facing behavior — conversation history, long-term memory, workspace files, session metadata, and auth — are all fully isolated per agent, which means fully isolated per user in our setup.
+
+The only shared layer is **debug/trace logs** (`~/.openclaw/logs/`). These are operational logs (raw API payloads, cache traces), not user-facing memory. An agent never reads from these files to inform its responses. They don't affect what the bot "knows" or "remembers."
+
+**Bottom line**: for anything that affects what the bot says, remembers, or knows — the isolation is complete. Alice cannot learn Bob's secrets, recall Bob's conversations, or access Bob's workspace files. The only "leak" is in debug logs that no agent reads.
