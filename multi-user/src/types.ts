@@ -74,6 +74,17 @@ export type AuthEntry =
 /** The full multi-user config file shape. */
 export type UsersConfig = {
   users: UserProfile[];
+  /**
+   * Shared API keys applied to ALL users via OpenClaw's config `env` section.
+   * These end up in `generated.json` → deep-merged into `openclaw.json` via `$include`.
+   * Values can be raw keys or `op://` references (resolved at generate time).
+   *
+   * Use this for provider keys that don't need per-user isolation (OpenAI, AssemblyAI, etc.).
+   * Per-user keys (e.g., SuperMemory scoped keys) go in each user's `env` field instead.
+   */
+  shared?: {
+    env?: Record<string, string>;
+  };
   defaults?: {
     /** Session isolation level. Default: "per-peer". */
     dmScope?: string;

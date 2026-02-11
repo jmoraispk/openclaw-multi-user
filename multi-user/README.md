@@ -12,21 +12,18 @@ A standalone layer that turns a single OpenClaw instance into a multi-user syste
 ## Quick Start
 
 ```bash
-# 1. Set shared API keys in openclaw.json (all users inherit these)
-#    Add to ~/.openclaw/openclaw.json:
-#    { "env": { "OPENAI_API_KEY": "sk-...", "ASSEMBLYAI_API_KEY": "..." } }
-
-# 2. Edit users.json with your users
+# 1. Edit users.json — shared keys + per-user keys all in one file
 cp users.example.json users.json
-# Only per-user keys (e.g., SuperMemory scoped keys) go here
+# shared.env: provider keys (OpenAI, AssemblyAI, etc.) — all users inherit
+# users[].env: per-user keys (SuperMemory scoped keys) — only that user
 
-# 3. Generate config + set up auth profiles
+# 2. Generate config + set up auth profiles
 npm run generate
 
-# 4. Wire into OpenClaw (one-time)
+# 3. Wire into OpenClaw (one-time)
 npm run cli -- wire
 
-# 5. Start the gateway (or let a running gateway hot-reload)
+# 4. Start the gateway (or let a running gateway hot-reload)
 openclaw gateway run
 ```
 
@@ -40,24 +37,20 @@ You can clone it from your repo and point OpenClaw at it.
 git clone https://github.com/jmoraispk/loglife.git ~/loglife
 cd ~/loglife/multi-user
 
-# 2. Set shared API keys in openclaw.json (OpenAI, AssemblyAI, etc.)
-#    These are inherited by ALL agents automatically.
-#    In ~/.openclaw/openclaw.json, add:
-#    { "env": { "OPENAI_API_KEY": "sk-...", "ASSEMBLYAI_API_KEY": "..." } }
-
-# 3. Create and edit your users.json
+# 2. Create and edit your users.json
 cp users.example.json users.json
-# Only per-user keys (e.g., SuperMemory scoped keys) go in users.json
+# shared.env: provider keys shared by all users
+# users[].env: per-user keys (e.g., SuperMemory scoped keys)
 
-# 4. Generate config + auth profiles
+# 3. Generate config + auth profiles
 npm run generate
 
-# 5. Wire the $include into OpenClaw's config (one-time)
+# 4. Wire the $include into OpenClaw's config (one-time)
 #    This adds "$include": "/path/to/loglife/multi-user/generated.json"
 #    to ~/.openclaw/openclaw.json
 npm run cli -- wire
 
-# 6. That's it — OpenClaw reads the generated config on next reload/restart
+# 5. That's it — OpenClaw reads the generated config on next reload/restart
 ```
 
 ### Adding Users While Running
@@ -77,21 +70,30 @@ npm run cli -- generate
 
 ### API Key Strategy
 
-**Shared keys** (OpenAI, AssemblyAI, Anthropic, etc.) go in `openclaw.json`'s `env` section. All agents inherit them automatically via OpenClaw's env fallback chain. One key per provider, shared across all users.
+Everything lives in **one file** (`users.json`):
 
-**Per-user keys** (SuperMemory scoped keys) go in each user's `env` field in `users.json`. These get written to per-agent auth-profiles and take priority over the shared env keys.
+- **`shared.env`** — Provider keys shared by all users (OpenAI, AssemblyAI, Anthropic, etc.). Written to `generated.json`'s `env` section, which gets deep-merged into `openclaw.json` via `$include`.
+- **`users[].env`** — Per-user keys (SuperMemory scoped keys). Written to per-agent auth-profiles, which take priority over env keys.
 
-This means most services need just one API key total — only services with per-user container isolation (like SuperMemory) need separate keys.
+Most services need just one API key total. Only services with per-user container isolation (like SuperMemory) need separate keys.
 
 ### 1Password Integration (Optional)
 
-Per-user keys can be stored as `op://` references instead of raw keys:
+Both shared and per-user keys can be `op://` references:
 
 ```json
 {
-  "env": {
-    "SUPERMEMORY_OPENCLAW_API_KEY": "op://LogLife_users/alice/SUPERMEMORY_API_KEY"
-  }
+  "shared": {
+    "env": {
+      "OPENAI_API_KEY": "op://LogLife_users/global/OPENAI_API_KEY"
+    }
+  },
+  "users": [{
+    "id": "alice",
+    "env": {
+      "SUPERMEMORY_OPENCLAW_API_KEY": "op://LogLife_users/alice/SUPERMEMORY_API_KEY"
+    }
+  }]
 }
 ```
 

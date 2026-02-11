@@ -140,6 +140,7 @@ function buildChannelsConfig(
 // ---------------------------------------------------------------------------
 
 type GeneratedConfig = {
+  env?: Record<string, string>;
   agents: {
     list: Array<{
       id: string;
@@ -197,12 +198,19 @@ export function generateConfig(config: UsersConfig): GeneratedConfig {
     }
   }
 
-  return {
+  const result: GeneratedConfig = {
     agents: { list: agents },
     bindings,
     channels: buildChannelsConfig(channelPeers),
     session: { dmScope },
   };
+
+  // Include shared env keys (resolved from op:// at auth-setup time, raw here)
+  if (config.shared?.env && Object.keys(config.shared.env).length > 0) {
+    result.env = { ...config.shared.env };
+  }
+
+  return result;
 }
 
 // ---------------------------------------------------------------------------

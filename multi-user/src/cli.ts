@@ -23,7 +23,7 @@ import os from "node:os";
 import type { UsersConfig, UserProfile } from "./types.ts";
 import { parseAllIdentifiers } from "./identifiers.ts";
 import { generateConfig } from "./generate.ts";
-import { writeAuthProfiles } from "./auth-setup.ts";
+import { writeAuthProfiles, resolveOpReference } from "./auth-setup.ts";
 import { ENV_TO_PROVIDER, DEFAULT_MODEL } from "./types.ts";
 
 // ---------------------------------------------------------------------------
@@ -242,6 +242,17 @@ function cmdGenerate() {
 
   // Generate config
   const generated = generateConfig(config);
+
+  // Resolve op:// references in shared env before writing
+  if (generated.env) {
+    const resolvedEnv: Record<string, string> = {};
+    for (const [key, value] of Object.entries(generated.env)) {
+      resolvedEnv[key] = resolveOpReference(value);
+    }
+    generated.env = resolvedEnv;
+    console.log(`  Shared env keys: ${Object.keys(resolvedEnv).length}`);
+  }
+
   fs.writeFileSync(OUTPUT_PATH, JSON.stringify(generated, null, 2) + "\n");
   console.log(`Generated config → ${OUTPUT_PATH}`);
   console.log(`  Agents: ${generated.agents.list.length}`);

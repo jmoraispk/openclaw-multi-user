@@ -1,5 +1,11 @@
 {
-  "_comment": "Shared API keys (OpenAI, AssemblyAI, Anthropic, etc.) go in openclaw.json 'env' section — all agents inherit them automatically. Only per-user keys (like SuperMemory scoped keys) belong here.",
+  "shared": {
+    "env": {
+      "OPENAI_API_KEY": "op://LogLife_users/global/OPENAI_API_KEY",
+      "ANTHROPIC_API_KEY": "op://LogLife_users/global/ANTHROPIC_API_KEY",
+      "ASSEMBLYAI_API_KEY": "op://LogLife_users/global/ASSEMBLYAI_API_KEY"
+    }
+  },
   "users": [
     {
       "id": "alice",
@@ -10,7 +16,7 @@
         "discord:123456789"
       ],
       "env": {
-        "SUPERMEMORY_OPENCLAW_API_KEY": "sm_scoped_alice_key"
+        "SUPERMEMORY_OPENCLAW_API_KEY": "op://LogLife_users/alice/SUPERMEMORY_API_KEY"
       }
     },
     {
@@ -19,7 +25,7 @@
       "identifiers": ["+0987654321"],
       "model": "openai/gpt-5.2",
       "env": {
-        "SUPERMEMORY_OPENCLAW_API_KEY": "sm_scoped_bob_key"
+        "SUPERMEMORY_OPENCLAW_API_KEY": "op://LogLife_users/bob/SUPERMEMORY_API_KEY"
       }
     }
   ],

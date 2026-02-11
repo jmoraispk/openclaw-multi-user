@@ -174,4 +174,41 @@ describe("generateConfig", () => {
     assert.deepStrictEqual(slack.dm.allowFrom, ["U012345"]);
     assert.strictEqual(slack.dm.policy, "open");
   });
+
+  it("includes shared.env in generated output", () => {
+    const config: UsersConfig = {
+      users: [
+        {
+          id: "alice",
+          identifiers: ["+1234567890"],
+        },
+      ],
+      shared: {
+        env: {
+          OPENAI_API_KEY: "sk-test-shared",
+          ASSEMBLYAI_API_KEY: "asm-test-shared",
+        },
+      },
+    };
+
+    const result = generateConfig(config);
+    assert.deepStrictEqual(result.env, {
+      OPENAI_API_KEY: "sk-test-shared",
+      ASSEMBLYAI_API_KEY: "asm-test-shared",
+    });
+  });
+
+  it("omits env when shared.env is not set", () => {
+    const config: UsersConfig = {
+      users: [
+        {
+          id: "alice",
+          identifiers: ["+1234567890"],
+        },
+      ],
+    };
+
+    const result = generateConfig(config);
+    assert.strictEqual(result.env, undefined);
+  });
 });
