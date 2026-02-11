@@ -15,27 +15,84 @@ A standalone layer that turns a single OpenClaw instance into a multi-user syste
 ```bash
 # 1. Edit users.json with your users
 cp users.example.json users.json
-# Edit users.json with real identifiers and API keys
+# Edit users.json — use op:// references or raw API keys
 
 # 2. Generate config + set up auth profiles
 npm run generate
 npm run auth-setup
 
-# 3. Add $include to your openclaw.json (one-time)
-# Or run: npm run cli -- wire
+# 3. Wire into OpenClaw (one-time)
 npm run cli -- wire
 
-# 4. Start the gateway
+# 4. Start the gateway (or let a running gateway hot-reload)
 openclaw gateway run
-
-# 5. Test (optional — requires running gateway)
-npm run test-harness
 ```
 
-## Or use the convenience wrapper
+## Deploying into an Existing OpenClaw Installation
+
+This folder is fully standalone — no OpenClaw source modifications needed.
+You can clone it from your repo and point OpenClaw at it.
 
 ```bash
-./run.sh
+# 1. Clone (or copy) this folder next to your OpenClaw state directory
+git clone https://github.com/jmoraispk/loglife.git ~/loglife
+cd ~/loglife/multi-user
+
+# 2. Create and edit your users.json
+cp users.example.json users.json
+# Fill in users, identifiers, and API keys (raw or op:// references)
+
+# 3. Generate config + auth profiles
+npm run generate
+
+# 4. Wire the $include into OpenClaw's config (one-time)
+#    This adds "$include": "/path/to/loglife/multi-user/generated.json"
+#    to ~/.openclaw/openclaw.json
+npm run cli -- wire
+
+# 5. That's it — OpenClaw reads the generated config on next reload/restart
+```
+
+### Adding Users While Running
+
+OpenClaw reads agents and bindings dynamically — no restart needed.
+
+```bash
+# Add a user
+npm run cli -- users add carol \
+  --name "Carol" \
+  --identifier "+1555000111" \
+  --vault "op://LogLife_users/carol"
+
+# Regenerate (also touches openclaw.json to trigger hot-reload)
+npm run cli -- generate
+```
+
+### 1Password Integration (Optional)
+
+API keys can be stored as `op://` references instead of raw keys:
+
+```json
+{
+  "env": {
+    "ANTHROPIC_API_KEY": "op://LogLife_users/alice/ANTHROPIC_API_KEY"
+  }
+}
+```
+
+At generate time, `op://` values are resolved via the 1Password CLI.
+If you don't use 1Password, just put raw keys — everything still works.
+
+## CLI Commands
+
+```bash
+npm run cli -- users list                         # List all users
+npm run cli -- users add <id> [options]           # Add a user
+npm run cli -- users remove <id>                  # Remove a user
+npm run cli -- users auth set <id> <provider> <key>  # Set an API key
+npm run cli -- generate                           # Regenerate config
+npm run cli -- status                             # Show per-user usage
+npm run cli -- wire                               # Wire $include into openclaw.json
 ```
 
 ## Files
@@ -43,13 +100,15 @@ npm run test-harness
 | File | Purpose |
 |------|---------|
 | `users.json` | Source of truth: who are the users? |
+| `users.example.json` | Example with op:// references and defaults |
 | `generated.json` | Auto-generated OpenClaw config fragment (do not edit) |
 | `src/types.ts` | TypeScript types for user profiles |
 | `src/identifiers.ts` | Parse phone numbers and channel IDs into OpenClaw format |
 | `src/generate.ts` | Read users.json, output generated.json |
-| `src/auth-setup.ts` | Write API keys to per-agent auth-profiles.json |
+| `src/auth-setup.ts` | Write API keys to per-agent auth-profiles.json (resolves op://) |
+| `src/cli.ts` | CLI for managing users, generating config, viewing status |
 | `src/test-harness.ts` | Automated isolation tests via gateway WebSocket |
-| `src/cli.ts` | CLI for managing users (Phase 2) |
+| `dashboard/index.html` | Web dashboard for per-user usage stats |
 
 ## Testing
 
@@ -65,7 +124,8 @@ npm run test-harness
 
 - **Zero OpenClaw modifications** — everything is config generation + data files
 - **Update safe** — `git pull` from upstream will never conflict
-- **Portable** — copy this directory to any OpenClaw installation
+- **Portable** — clone this folder, point OpenClaw at it, done
 - **Uses existing primitives** — agents, bindings, allow-lists, auth profiles
+- **Secrets stay in 1Password** — `users.json` is safe to commit (only op:// refs)
 
-See the full design document in the plan file for detailed architecture and rationale.
+See `README_why.md` for detailed architecture, memory isolation analysis, and design rationale.
