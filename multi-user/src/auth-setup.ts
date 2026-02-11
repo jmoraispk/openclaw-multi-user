@@ -15,6 +15,7 @@
 import fs from "node:fs";
 import path from "node:path";
 import os from "node:os";
+import { execFileSync } from "node:child_process";
 import type { UsersConfig, UserProfile, AuthEntry } from "./types.ts";
 import { ENV_TO_PROVIDER } from "./types.ts";
 
@@ -27,6 +28,101 @@ const AUTH_STORE_VERSION = 1;
 
 /** Filename for auth profiles (must match OpenClaw's AUTH_PROFILE_FILENAME). */
 const AUTH_PROFILE_FILENAME = "auth-profiles.json";
+
+// ---------------------------------------------------------------------------
+// 1Password (op://) secret resolution
+// ---------------------------------------------------------------------------
+
+/**
+ * Resolve a single value that may be a 1Password reference.
+ * If the value starts with "op://", shells out to `op read` to fetch the secret.
+ * Raw values are returned as-is.
+ */
+export function resolveOpReference(value: string): string {
+  if (!value.startsWith("op://")) return value;
+
+  try {
+    // Use execFileSync to avoid shell injection; timeout after 15s
+    const result = execFileSync("op", ["read", value], {
+      encoding: "utf-8",
+      timeout: 15_000,
+      stdio: ["pipe", "pipe", "pipe"],
+    }).trim();
+
+    if (!result) {
+      throw new Error(`1Password returned empty value for: ${value}`);
+    }
+    return result;
+  } catch (err) {
+    const msg = err instanceof Error ? err.message : String(err);
+    // Provide a helpful message if `op` is not found
+    if (msg.includes("ENOENT")) {
+      throw new Error(
+        `1Password CLI (op) not found. Install it or replace op:// references with raw keys.\n  Reference: ${value}`,
+      );
+    }
+    throw new Error(`Failed to resolve 1Password reference: ${value}\n  ${msg}`);
+  }
+}
+
+/**
+ * Resolve all op:// references in a user profile's env and auth entries.
+ * Returns a new UserProfile with secrets resolved (the original is not mutated).
+ */
+export function resolveUserSecrets(user: UserProfile): UserProfile {
+  const resolved = { ...user };
+
+  // Resolve env values
+  if (resolved.env) {
+    const resolvedEnv: Record<string, string> = {};
+    for (const [key, value] of Object.entries(resolved.env)) {
+      resolvedEnv[key] = resolveOpReference(value);
+    }
+    resolved.env = resolvedEnv;
+  }
+
+  // Resolve auth entry keys/tokens
+  if (resolved.auth) {
+    const resolvedAuth: Record<string, AuthEntry> = {};
+    for (const [profileId, entry] of Object.entries(resolved.auth)) {
+      if (entry.type === "api_key") {
+        resolvedAuth[profileId] = { ...entry, key: resolveOpReference(entry.key) };
+      } else if (entry.type === "token" && entry.token) {
+        resolvedAuth[profileId] = { ...entry, token: resolveOpReference(entry.token) };
+      } else if (entry.type === "oauth") {
+        resolvedAuth[profileId] = {
+          ...entry,
+          access: resolveOpReference(entry.access),
+          ...(entry.refresh ? { refresh: resolveOpReference(entry.refresh) } : {}),
+        };
+      } else {
+        resolvedAuth[profileId] = entry;
+      }
+    }
+    resolved.auth = resolvedAuth;
+  }
+
+  return resolved;
+}
+
+/**
+ * Check whether any user profile contains op:// references that need resolution.
+ */
+export function hasOpReferences(user: UserProfile): boolean {
+  if (user.env) {
+    for (const value of Object.values(user.env)) {
+      if (value.startsWith("op://")) return true;
+    }
+  }
+  if (user.auth) {
+    for (const entry of Object.values(user.auth)) {
+      if (entry.type === "api_key" && entry.key.startsWith("op://")) return true;
+      if (entry.type === "token" && entry.token?.startsWith("op://")) return true;
+      if (entry.type === "oauth" && entry.access.startsWith("op://")) return true;
+    }
+  }
+  return false;
+}
 
 // ---------------------------------------------------------------------------
 // CLI args
@@ -158,13 +254,17 @@ function resolveAgentAuthPath(stateDir: string, agentId: string): string {
  * If a profile already exists on disk, we merge our profiles into it
  * (our entries take precedence). This preserves any profiles that were
  * set up via `openclaw models auth login` or other external tools.
+ *
+ * Automatically resolves op:// references via 1Password CLI before writing.
  */
 export function writeAuthProfiles(
   stateDir: string,
   user: UserProfile,
   options: { dryRun?: boolean } = {},
 ): { path: string; profileCount: number; merged: boolean } {
-  const authStore = buildAuthProfiles(user);
+  // Resolve 1Password references before building profiles
+  const resolvedUser = hasOpReferences(user) ? resolveUserSecrets(user) : user;
+  const authStore = buildAuthProfiles(resolvedUser);
   if (Object.keys(authStore.profiles).length === 0) {
     return { path: "", profileCount: 0, merged: false };
   }

@@ -15,6 +15,7 @@ import fs from "node:fs";
 import path from "node:path";
 import { parseAllIdentifiers } from "./identifiers.ts";
 import type { UsersConfig, UserProfile, ParsedIdentifier } from "./types.ts";
+import { DEFAULT_MODEL } from "./types.ts";
 
 // ---------------------------------------------------------------------------
 // CLI args
@@ -165,7 +166,7 @@ export function generateConfig(config: UsersConfig): GeneratedConfig {
   const bindings: GeneratedConfig["bindings"] = [];
   const channelPeers = new Map<string, Set<string>>();
   const dmScope = config.defaults?.dmScope ?? "per-peer";
-  const defaultModel = config.defaults?.model;
+  const defaultModel = config.defaults?.model ?? DEFAULT_MODEL;
 
   for (const user of config.users) {
     // Build agent entry

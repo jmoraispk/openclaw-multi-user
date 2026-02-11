@@ -24,7 +24,7 @@ import type { UsersConfig, UserProfile } from "./types.ts";
 import { parseAllIdentifiers } from "./identifiers.ts";
 import { generateConfig } from "./generate.ts";
 import { writeAuthProfiles } from "./auth-setup.ts";
-import { ENV_TO_PROVIDER } from "./types.ts";
+import { ENV_TO_PROVIDER, DEFAULT_MODEL } from "./types.ts";
 
 // ---------------------------------------------------------------------------
 // Paths
@@ -69,20 +69,24 @@ function cmdUsersList() {
     return;
   }
 
-  console.log(`\n  Users (${config.users.length}):\n`);
+  const defaultModel = config.defaults?.model ?? DEFAULT_MODEL;
+  console.log(`\n  Users (${config.users.length}):  [default model: ${defaultModel}]\n`);
   for (const user of config.users) {
     const identifiers = user.identifiers.join(", ");
-    const model = user.model ?? config.defaults?.model ?? "(default)";
+    const model = user.model ?? `(default: ${defaultModel})`;
     const skills = user.skills ? user.skills.join(", ") : "(all)";
     const envKeys = user.env ? Object.keys(user.env).join(", ") : "(none)";
     const authKeys = user.auth ? Object.keys(user.auth).join(", ") : "";
     const auth = [envKeys, authKeys].filter((s) => s && s !== "(none)").join(", ") || "(none)";
+    const hasOpRefs = user.env && Object.values(user.env).some((v) => v.startsWith("op://"));
+    const secretsLabel = hasOpRefs ? " (1Password)" : "";
 
     console.log(`  ${user.id}${user.name ? ` (${user.name})` : ""}`);
     console.log(`    Identifiers: ${identifiers}`);
     console.log(`    Model:       ${model}`);
     console.log(`    Skills:      ${skills}`);
-    console.log(`    Auth:        ${auth}`);
+    console.log(`    Auth:        ${auth}${secretsLabel}`);
+    if (user.vault) console.log(`    Vault:       ${user.vault}`);
     console.log();
   }
 }
@@ -90,7 +94,7 @@ function cmdUsersList() {
 function cmdUsersAdd(args: string[]) {
   const id = args[0];
   if (!id) {
-    console.error("Usage: users add <id> [--name NAME] [--identifier ID] [--model MODEL]");
+    console.error("Usage: users add <id> [--name NAME] [--identifier ID] [--model MODEL] [--vault VAULT]");
     process.exit(1);
   }
 
@@ -115,6 +119,8 @@ function cmdUsersAdd(args: string[]) {
     } else if (args[i] === "--skill" && args[i + 1]) {
       if (!user.skills) user.skills = [];
       user.skills.push(args[++i]);
+    } else if (args[i] === "--vault" && args[i + 1]) {
+      user.vault = args[++i];
     }
   }
 
@@ -129,6 +135,25 @@ function cmdUsersAdd(args: string[]) {
   } catch (err) {
     console.error(`Invalid identifier: ${err instanceof Error ? err.message : err}`);
     process.exit(1);
+  }
+
+  // If vault is set, populate env with op:// references for common providers
+  if (user.vault) {
+    const vaultPath = user.vault.endsWith("/") ? user.vault.slice(0, -1) : user.vault;
+    if (!user.env) user.env = {};
+    // Set op:// references for all well-known providers (user can prune later)
+    const commonKeys = [
+      "ANTHROPIC_API_KEY",
+      "OPENAI_API_KEY",
+      "SUPERMEMORY_OPENCLAW_API_KEY",
+      "ASSEMBLYAI_API_KEY",
+    ];
+    for (const key of commonKeys) {
+      if (!user.env[key]) {
+        user.env[key] = `${vaultPath}/${key}`;
+      }
+    }
+    console.log(`Set ${commonKeys.length} op:// references from vault: ${vaultPath}`);
   }
 
   config.users.push(user);
@@ -234,6 +259,14 @@ function cmdGenerate() {
       totalProfiles += result.profileCount;
     }
   }
+  // Touch openclaw.json to trigger gateway hot-reload (picks up $include changes)
+  const mainConfigPath = path.join(stateDir, "openclaw.json");
+  if (fs.existsSync(mainConfigPath)) {
+    const now = new Date();
+    fs.utimesSync(mainConfigPath, now, now);
+    console.log(`Touched ${mainConfigPath} → gateway will reload config.`);
+  }
+
   console.log(`\nDone. ${generated.agents.list.length} agent(s), ${totalProfiles} auth profile(s).`);
 }
 
@@ -515,16 +548,22 @@ function printHelp() {
     users add <id> [options]                 Add a new user
       --name <name>                          Display name
       --identifier <id>                      Channel identifier (repeatable)
-      --model <model>                        LLM model
+      --model <model>                        LLM model (default: ${DEFAULT_MODEL})
       --skill <skill>                        Skill allowlist entry (repeatable)
+      --vault <op://path>                    1Password vault path (auto-populates op:// refs)
     users remove <id>                        Remove a user
     users auth set <id> <provider> <key>     Set an API key for a user
     generate                                 Regenerate config + auth profiles
     status                                   Show per-user usage summary
     wire                                     Add $include to openclaw.json
 
+  1Password Integration:
+    API keys can be stored as op:// references in users.json instead of raw keys.
+    At generate time, op:// values are resolved via the 1Password CLI (op read).
+    Use --vault when adding a user to auto-populate op:// references.
+
   Examples:
-    users add alice --name "Alice" --identifier "+1234567890" --model "anthropic/claude-sonnet-4-20250514"
+    users add alice --name "Alice" --identifier "+1234567890" --vault "op://LogLife_users/alice"
     users auth set alice anthropic sk-ant-api-key-here
     generate
     status

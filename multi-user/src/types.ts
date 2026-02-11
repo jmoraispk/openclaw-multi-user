@@ -26,7 +26,7 @@ export type UserProfile = {
    */
   identifiers: string[];
 
-  /** LLM model for this user (e.g., "anthropic/claude-sonnet-4-20250514"). */
+  /** LLM model for this user (e.g., "anthropic/claude-sonnet-4-5"). */
   model?: string;
 
   /** Skills allowlist for this user (omit = all skills available). */
@@ -34,12 +34,22 @@ export type UserProfile = {
 
   /**
    * API keys for this user, keyed by provider env var name.
+   * Values can be raw keys or 1Password references (op:// URIs).
    * These are written to per-agent auth-profiles.json, NOT to env vars
    * (because env vars are shared across all agents at config load time).
    *
-   * Example: { "ANTHROPIC_API_KEY": "sk-ant-..." }
+   * Examples:
+   *   { "ANTHROPIC_API_KEY": "sk-ant-..." }            — raw key
+   *   { "ANTHROPIC_API_KEY": "op://LogLife_users/alice/ANTHROPIC_API_KEY" } — 1Password ref
    */
   env?: Record<string, string>;
+
+  /**
+   * 1Password vault path prefix for this user (e.g., "op://LogLife_users/alice").
+   * When set, the `generate` command can auto-discover keys from this vault item
+   * and resolve all op:// references at auth-setup time.
+   */
+  vault?: string;
 
   /**
    * Advanced: raw auth profile entries for OAuth or token-based providers.
@@ -78,6 +88,9 @@ export type ParsedIdentifier = {
   peerId: string;
 };
 
+/** Default model when a user doesn't specify one. */
+export const DEFAULT_MODEL = "anthropic/claude-sonnet-4-5";
+
 /** Map of well-known env var names to their provider IDs. */
 export const ENV_TO_PROVIDER: Record<string, string> = {
   ANTHROPIC_API_KEY: "anthropic",
@@ -91,4 +104,7 @@ export const ENV_TO_PROVIDER: Record<string, string> = {
   XAI_API_KEY: "xai",
   COHERE_API_KEY: "cohere",
   PERPLEXITY_API_KEY: "perplexity",
+  ASSEMBLYAI_API_KEY: "assemblyai",
+  SUPERMEMORY_OPENCLAW_API_KEY: "supermemory",
+  DEEPGRAM_API_KEY: "deepgram",
 };

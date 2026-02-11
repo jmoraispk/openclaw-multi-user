@@ -2,6 +2,7 @@ import { describe, it } from "node:test";
 import assert from "node:assert/strict";
 import { generateConfig } from "./generate.ts";
 import type { UsersConfig } from "./types.ts";
+import { DEFAULT_MODEL } from "./types.ts";
 
 describe("generateConfig", () => {
   it("generates config for a single user with a phone number", () => {
@@ -116,7 +117,7 @@ describe("generateConfig", () => {
     assert.strictEqual(result.agents.list[0].model, "anthropic/claude-sonnet-4-20250514");
   });
 
-  it("omits model when neither user nor defaults specify one", () => {
+  it("falls back to DEFAULT_MODEL when neither user nor defaults specify one", () => {
     const config: UsersConfig = {
       users: [
         {
@@ -127,7 +128,7 @@ describe("generateConfig", () => {
     };
 
     const result = generateConfig(config);
-    assert.ok(!("model" in result.agents.list[0]));
+    assert.strictEqual(result.agents.list[0].model, DEFAULT_MODEL);
   });
 
   it("omits skills when not specified", () => {
