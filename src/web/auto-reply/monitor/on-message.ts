@@ -6,6 +6,7 @@ import type { WebInboundMsg } from "../types.js";
 import type { EchoTracker } from "./echo.js";
 import type { GroupHistoryEntry } from "./group-gating.js";
 import { logVerbose } from "../../../globals.js";
+import { buildPeerKey, getOrAssignPeerAgent } from "../../../routing/peer-agent-assignments.js";
 import { resolveAgentRoute } from "../../../routing/resolve-route.js";
 import { buildGroupHistoryKey } from "../../../routing/session-key.js";
 import { normalizeE164 } from "../../../utils.js";
@@ -63,14 +64,27 @@ export function createWebOnMessageHandler(params: {
   return async (msg: WebInboundMsg) => {
     const conversationId = msg.conversationId ?? msg.from;
     const peerId = resolvePeerId(msg);
+    const peer = {
+      kind: (msg.chatType === "group" ? "group" : "dm") as "group" | "dm",
+      id: peerId,
+    };
+    // Auto-assign: when no binding matches this peer, assign to an agent (zero config = one dynamic agent per peer; else round-robin).
+    const peerAgentOverride = peerId
+      ? getOrAssignPeerAgent(
+          params.cfg,
+          buildPeerKey({
+            channel: "whatsapp",
+            accountId: msg.accountId,
+            peer,
+          }),
+        )
+      : undefined;
     const route = resolveAgentRoute({
       cfg: params.cfg,
       channel: "whatsapp",
       accountId: msg.accountId,
-      peer: {
-        kind: msg.chatType === "group" ? "group" : "dm",
-        id: peerId,
-      },
+      peer,
+      peerAgentOverride,
     });
     const groupHistoryKey =
       msg.chatType === "group"

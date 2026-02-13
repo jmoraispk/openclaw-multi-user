@@ -408,4 +408,20 @@ describe("parentPeer binding inheritance (thread support)", () => {
     expect(route.agentId).toBe("main");
     expect(route.matchedBy).toBe("default");
   });
+
+  test("peerAgentOverride is used when peer has no binding (dynamic.peer)", () => {
+    const cfg: OpenClawConfig = {
+      agents: { list: [{ id: "main" }, { id: "user2" }] },
+      bindings: [],
+    };
+    const route = resolveAgentRoute({
+      cfg,
+      channel: "whatsapp",
+      accountId: "default",
+      peer: { kind: "dm", id: "+15555550123" },
+      peerAgentOverride: "user2",
+    });
+    expect(route.agentId).toBe("user2");
+    expect(route.matchedBy).toBe("dynamic.peer");
+  });
 });

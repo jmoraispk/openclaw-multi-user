@@ -217,6 +217,15 @@ function resolveSessionDisplayName(key: string, row?: SessionsListResult["sessio
   return key;
 }
 
+/** Parse agent id from session key (e.g. agent:main:whatsapp:dm:+1… → main). */
+function agentIdFromSessionKey(key: string): string | undefined {
+  if (!key.startsWith("agent:")) {
+    return undefined;
+  }
+  const parts = key.split(":");
+  return parts[1];
+}
+
 function resolveSessionOptions(
   sessionKey: string,
   sessions: SessionsListResult | null,
@@ -256,6 +265,38 @@ function resolveSessionOptions(
           displayName: resolveSessionDisplayName(s.key, s),
         });
       }
+    }
+  }
+
+  // Disambiguate when multiple sessions share the same display name (e.g. same number for different agents, or same agent with multiple sessions).
+  const displayNameCounts = new Map<string, number>();
+  for (const o of options) {
+    const name = o.displayName ?? o.key;
+    displayNameCounts.set(name, (displayNameCounts.get(name) ?? 0) + 1);
+  }
+  for (const o of options) {
+    const name = o.displayName ?? o.key;
+    if ((displayNameCounts.get(name) ?? 0) > 1) {
+      const agentId = agentIdFromSessionKey(o.key);
+      if (agentId) {
+        o.displayName = `${name} (${agentId})`;
+      }
+    }
+  }
+  // Ensure every label is unique: number every duplicate (including the first) so no two options share the same text.
+  const nameToIndices = new Map<string, number>();
+  for (const o of options) {
+    const name = o.displayName ?? o.key;
+    const count = (nameToIndices.get(name) ?? 0) + 1;
+    nameToIndices.set(name, count);
+  }
+  const nameToNextIndex = new Map<string, number>();
+  for (const o of options) {
+    const name = o.displayName ?? o.key;
+    if ((nameToIndices.get(name) ?? 0) > 1) {
+      const n = (nameToNextIndex.get(name) ?? 0) + 1;
+      nameToNextIndex.set(name, n);
+      o.displayName = `${name} — ${n}`;
     }
   }
 

@@ -26,6 +26,8 @@ export type ResolveAgentRouteInput = {
   parentPeer?: RoutePeer | null;
   guildId?: string | null;
   teamId?: string | null;
+  /** When set with peer, use this agent for this peer (e.g. from auto-assign for new contacts). */
+  peerAgentOverride?: string | null;
 };
 
 export type ResolvedAgentRoute = {
@@ -44,6 +46,7 @@ export type ResolvedAgentRoute = {
     | "binding.team"
     | "binding.account"
     | "binding.channel"
+    | "dynamic.peer"
     | "default";
 };
 
@@ -212,6 +215,9 @@ export function resolveAgentRoute(input: ResolveAgentRouteInput): ResolvedAgentR
     const peerMatch = bindings.find((b) => matchesPeer(b.match, peer));
     if (peerMatch) {
       return choose(peerMatch.agentId, "binding.peer");
+    }
+    if (input.peerAgentOverride?.trim()) {
+      return choose(input.peerAgentOverride.trim(), "dynamic.peer");
     }
   }
 

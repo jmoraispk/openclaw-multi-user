@@ -178,7 +178,8 @@ export function resolveAgentWorkspaceDir(cfg: OpenClawConfig, agentId: string) {
     }
     return DEFAULT_AGENT_WORKSPACE_DIR;
   }
-  return path.join(os.homedir(), ".openclaw", `workspace-${id}`);
+  const root = resolveStateDir(process.env, os.homedir);
+  return path.join(root, "agents", id, "workspace");
 }
 
 export function resolveAgentDir(cfg: OpenClawConfig, agentId: string) {
